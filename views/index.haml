@@ -1,0 +1,96 @@
+%input#from_date.date-picker
+%input#to_date.date-picker
+%button#do_it Do the thing!
+
+#macros_container
+#body_container
+
+:javascript
+  $(document).on('ready', function() {
+    $('.date-picker').datepicker();
+  });
+
+  var graphIt = function ($element, title, unitOfMeasure, xAxis, data) {
+    $element.highcharts({
+      chart: {
+        type: 'area'
+      },
+      title: {
+        text: title
+      },
+      xAxis: {
+        categories: xAxis,
+        tickmarkPlacement: 'on',
+        title: {
+          enabled: false
+        }
+      },
+      yAxis: {
+        title: {
+          text: unitOfMeasure
+        },
+        labels: {
+          formatter: function () {
+            return this.value;
+          }
+        }
+      },
+      tooltip: {
+        shared: true,
+        valueSuffix: unitOfMeasure
+      },
+      plotOptions: {
+        area: {
+          stacking: 'normal',
+          lineColor: '#666666',
+          lineWidth: 1,
+          marker: {
+            lineWidth: 1,
+            lineColor: '#666666'
+          }
+        }
+      },
+      series: data
+    });
+  }
+
+  var getKeyValuesFromJSONArray = function(array, key) {
+    return array.map(function(row) { return row[key] });
+  };
+
+  $('#do_it').on('click', function() {
+    var fromDate = $.datepicker.formatDate('dd-mm-yy', new Date($('#from_date').val()));
+    var toDate = $.datepicker.formatDate('dd-mm-yy', new Date($('#to_date').val()));
+
+    var macros = $.getJSON('/macros/' + fromDate + '/' + toDate);
+    var body = $.getJSON('/body/' + fromDate + '/' + toDate);
+
+    $.when(macros, body)
+    .then(function(macroData, bodyData) {
+      var dates = getKeyValuesFromJSONArray(macroData[0], 'date');
+      var macros = [{
+                     name: 'fat',
+                     data: getKeyValuesFromJSONArray(macroData[0], 'fat')
+                   }, {
+                     name: 'carbs',
+                     data: getKeyValuesFromJSONArray(macroData[0], 'carbs')
+                   }, {
+                     name: 'protein',
+                     data: getKeyValuesFromJSONArray(macroData[0], 'protein')
+                   }];
+      var bodyComposition = [{
+                              name: 'fat',
+                              data: getKeyValuesFromJSONArray(bodyData[0], 'fat_weight')
+                            }, {
+                              name: 'lean',
+                              data: getKeyValuesFromJSONArray(bodyData[0], 'lean_weight')
+                            }];
+      return [dates, macros, bodyComposition];
+    }).done(function (data) {
+      var dates = data[0];
+      var macros = data[1];
+      var weight = data[2];
+      graphIt($('#macros_container'), 'Macros', 'grams', dates, macros);
+      graphIt($('#body_container'), 'Body Composition', 'lbs', dates, weight);
+    });
+  });
